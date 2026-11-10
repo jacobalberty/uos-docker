@@ -1,0 +1,18 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "timezone": "America/Chicago",
+  "dependencyDashboard": true,
+  "packageRules": [
+    {
+      "description": "One PR for all GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "description": "FROM is our own uosserver:${UOS_VERSION}; the version is owned by .github/scripts/uos-updater.py (update.yml), not Renovate",
+      "matchManagers": ["dockerfile"],
+      "enabled": false
+    }
+  ]
+}
