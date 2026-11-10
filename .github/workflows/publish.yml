@@ -3,7 +3,7 @@ name: Publish
 # Every merge to main publishes ghcr.io/<owner>/uos-docker:
 #   first build of a UniFi OS version   -> <version>            (e.g. 5.1.42)
 #   each later merge on that version    -> <version>-<n>        (5.1.42-1, 5.1.42-2, ...)
-# plus `latest`. The base uosserver image is extracted first if this version is new.
+# plus `latest`, and a git tag + GitHub release with the same name. The base uosserver image is extracted first if this version is new.
 
 on:
   push:
@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write      # create the git tag + GitHub release
   packages: write
 
 jobs:
@@ -65,3 +65,17 @@ jobs:
             org.opencontainers.image.version=${{ steps.tag.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          IMAGE: ${{ steps.tag.outputs.image }}
+          UOS_VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --generate-notes \
+            --notes "UniFi OS Server **$UOS_VERSION**. Image: \`$IMAGE:$TAG\`" \
+            --latest
