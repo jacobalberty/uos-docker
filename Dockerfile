@@ -21,6 +21,7 @@ STOPSIGNAL SIGRTMIN+3
 RUN systemctl mask getty.target getty@.service serial-getty@.service \
         console-getty.service container-getty@.service
 
+COPY systemd/unifi.service.d/ /etc/systemd/system/unifi.service.d/
 COPY docker-entrypoint.sh /usr/local/sbin/uos-entrypoint
 RUN chmod 0755 /usr/local/sbin/uos-entrypoint
 
