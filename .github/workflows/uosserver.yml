@@ -1,0 +1,123 @@
+name: Extract uosserver base image
+
+# Ubiquiti ships UniFi OS Server only as an installer. This runs the installer for the version in
+# uos-version.env on a native runner per architecture, copies the `uosserver` image it loads into
+# podman out into docker, and publishes ghcr.io/<owner>/uosserver:<version> (multi-arch).
+# It does nothing when that tag already exists, so it is cheap to call on every publish.
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      image: ${{ steps.v.outputs.image }}
+      exists: ${{ steps.v.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: v
+        run: |
+          set -euo pipefail
+          . ./uos-version.env
+          image="${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/uosserver"
+          echo "version=$UOS_VERSION" >> "$GITHUB_OUTPUT"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          if err=$(docker buildx imagetools inspect "$image:$UOS_VERSION" 2>&1 >/dev/null); then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif grep -qiE 'not found|manifest unknown|name unknown|404' <<<"$err"; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "registry lookup failed: $err" >&2
+            exit 1
+          fi
+
+  extract:
+    needs: check
+    if: needs.check.outputs.exists == 'false'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download installer and verify checksum
+        run: |
+          set -euo pipefail
+          . ./uos-version.env
+          arch=${{ matrix.arch }}
+          url_var="UOS_${arch^^}_URL"; sha_var="UOS_${arch^^}_SHA256"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/uos-installer" "${!url_var}"
+          echo "${!sha_var}  $RUNNER_TEMP/uos-installer" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/uos-installer"
+
+      - name: Run the installer (loads the image into podman for user uosserver)
+        run: echo y | sudo "$RUNNER_TEMP/uos-installer"
+
+      - name: Export the uosserver image from podman
+        id: export
+        run: |
+          set -euo pipefail
+          # run from / : the uosserver user cannot read the runner's working directory
+          ref=$(sudo -H -u uosserver bash -c 'cd / && podman images --format "{{.Repository}}:{{.Tag}}"' \
+                | grep -E '(^|/)uosserver:' | head -n1)
+          [ -n "$ref" ] || { echo "no uosserver image found in podman" >&2; exit 1; }
+          echo "podman image: $ref"
+          tar=/tmp/uosserver.tar
+          sudo -H -u uosserver bash -c "cd / && podman save --format docker-archive -o $tar $ref"
+          sudo chmod 0644 "$tar"
+          docker load -i "$tar"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Check architecture
+        run: |
+          got=$(docker image inspect --format '{{.Architecture}}' '${{ steps.export.outputs.ref }}')
+          [ "$got" = "${{ matrix.arch }}" ] || { echo "expected ${{ matrix.arch }}, image is $got" >&2; exit 1; }
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push per-arch image
+        run: |
+          set -euo pipefail
+          target="${{ needs.check.outputs.image }}:${{ needs.check.outputs.version }}-${{ matrix.arch }}"
+          docker tag '${{ steps.export.outputs.ref }}' "$target"
+          docker push "$target"
+
+  manifest:
+    needs: [check, extract]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish multi-arch manifest
+        run: |
+          img='${{ needs.check.outputs.image }}'; v='${{ needs.check.outputs.version }}'
+          docker buildx imagetools create -t "$img:$v" "$img:$v-amd64" "$img:$v-arm64"

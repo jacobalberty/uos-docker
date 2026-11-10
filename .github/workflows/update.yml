@@ -1,0 +1,43 @@
+name: Update UniFi OS Server version
+
+# Daily: ask Ubiquiti for the latest release and open a PR if uos-version.env changes.
+# Merging that PR publishes the new version (see publish.yml).
+# Add a `PAT` repository secret (contents + pull requests write) so the PR triggers the checks;
+# without it the PR is opened with GITHUB_TOKEN, which requires Settings > Actions > "Allow
+# GitHub Actions to create and approve pull requests", and does not trigger workflows.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: update-uos
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: update
+        run: echo "version=$(./.github/scripts/uos-updater.py)" >> "$GITHUB_OUTPUT"
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.PAT || github.token }}
+          branch: update-${{ steps.update.outputs.version }}
+          title: "Update UniFi OS Server to ${{ steps.update.outputs.version }}"
+          commit-message: "Update UniFi OS Server to ${{ steps.update.outputs.version }}"
+          body: |
+            Automated update of `uos-version.env` from Ubiquiti's firmware API.
+
+            - Version: **${{ steps.update.outputs.version }}**
+            - On merge, `publish.yml` extracts the new `uosserver` base image and publishes
+              `uos-docker:${{ steps.update.outputs.version }}`.
+          labels: |
+            automated
+            dependencies
