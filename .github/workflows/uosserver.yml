@@ -4,9 +4,6 @@ name: Extract uosserver base image
 # uos-version.env on a native runner per architecture, copies the `uosserver` image it loads into
 # podman out into docker, and publishes ghcr.io/<owner>/uosserver:<version> (multi-arch).
 # It does nothing when that tag already exists, so it is cheap to call on every publish.
-#
-# NOTE: the image contains Ubiquiti's proprietary software. Keep the `uosserver` package private
-# (GitHub > Packages > uosserver > Package settings) unless you are sure you may redistribute it.
 
 on:
   workflow_call:

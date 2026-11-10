@@ -4,8 +4,6 @@
 automatically when Ubiquiti releases a new version.
 
 > UniFi OS Server is proprietary Ubiquiti software; this repo only contains the tooling around it.
-> The extracted `uosserver` base image contains it, so keep that package private unless you are
-> sure you may redistribute it.
 
 ## How it is built
 
@@ -56,8 +54,6 @@ directories; back them up (and take `.unf` backups from the UI).
 
 - Add a `PAT` secret (contents + pull requests: write) so the update PRs trigger the checks. Without
   it, enable Settings > Actions > "Allow GitHub Actions to create and approve pull requests".
-- After the first publish, set the `uosserver` package to private and let this repo access it
-  (Package settings > Manage Actions access), and choose the visibility you want for `uos-docker`.
 - Run `Extract uosserver base image` manually once to validate the extraction before relying on it.
 
 ## Credits
