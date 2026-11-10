@@ -1,0 +1,42 @@
+# Example: UniFi OS Server on its own LAN address. Adjust the network, address and paths.
+services:
+  unifi:
+    image: ghcr.io/jacobalberty/uos-docker:5.1.42      # pin a version; see README for the tag scheme
+    restart: unless-stopped
+    # systemd runs as PID 1 inside the container and needs these:
+    cgroup: host
+    cap_add: [NET_RAW, NET_ADMIN]
+    extra_hosts:
+      host.docker.internal: host-gateway
+    tmpfs:
+      - /run:exec
+      - /run/lock
+      - /tmp:exec
+      - /var/lib/journal
+      - /var/opt/unifi/tmp:size=64m
+    environment:
+      TZ: UTC
+      UOS_SYSTEM_IP: 192.168.1.10          # what devices use for http://<this>:8080/inform
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - ./state/persistent:/persistent
+      - ./state/var-log:/var/log
+      - ./state/data:/data
+      - ./state/srv:/srv
+      - ./state/var-lib-unifi:/var/lib/unifi
+      - ./state/var-lib-mongodb:/var/lib/mongodb
+      - ./state/etc-rabbitmq-ssl:/etc/rabbitmq/ssl
+    # Either give the container its own LAN address (macvlan, then no `ports:` is needed) ...
+    networks:
+      lan:
+        ipv4_address: 192.168.1.10
+    # ... or publish the ports on the Docker host:
+    # ports:
+    #   - 11443:443          # web UI / API
+    #   - 8080:8080          # device inform
+    #   - 3478:3478/udp      # STUN
+    #   - 10003:10003/udp    # discovery
+    #   (optional: 5005, 9543, 6789, 8444, 5514/udp, 5671, 8880-8882)
+networks:
+  lan:
+    external: true
