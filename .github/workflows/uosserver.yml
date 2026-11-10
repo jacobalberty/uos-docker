@@ -79,14 +79,19 @@ jobs:
         id: export
         run: |
           set -euo pipefail
-          # run from / : the uosserver user cannot read the runner's working directory;
-          # unset XDG_RUNTIME_DIR: sudo keeps the runner's, which uosserver does not own
-          ref=$(sudo -H -u uosserver env -u XDG_RUNTIME_DIR bash -c 'cd / && podman images --format "{{.Repository}}:{{.Tag}}"' \
-                | grep -E '(^|/)uosserver:' | head -n1)
+          # Run podman as uosserver in a clean environment: sudo would otherwise pass on the
+          # runner's HOME / XDG_* variables, which uosserver cannot access.
+          home=$(getent passwd uosserver | cut -d: -f6)
+          upodman() {
+            sudo -u uosserver env -i HOME="$home" PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin \
+              bash -c 'cd / && exec podman "$@"' podman "$@"
+          }
+          upodman images
+          ref=$(upodman images --format '{{.Repository}}:{{.Tag}}' | grep -E '(^|/)uosserver:' | head -n1)
           [ -n "$ref" ] || { echo "no uosserver image found in podman" >&2; exit 1; }
           echo "podman image: $ref"
           tar=/tmp/uosserver.tar
-          sudo -H -u uosserver env -u XDG_RUNTIME_DIR bash -c "cd / && podman save --format docker-archive -o $tar $ref"
+          upodman save --format docker-archive -o "$tar" "$ref"
           sudo chmod 0644 "$tar"
           docker load -i "$tar"
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
