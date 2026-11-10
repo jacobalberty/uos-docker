@@ -23,10 +23,10 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: update
         run: echo "version=$(./.github/scripts/uos-updater.py)" >> "$GITHUB_OUTPUT"
-      - uses: peter-evans/create-pull-request@v7
+      - uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.PAT || github.token }}
           branch: update-${{ steps.update.outputs.version }}
