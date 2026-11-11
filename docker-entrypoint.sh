@@ -4,6 +4,7 @@
 # Runtime inputs:
 #   UOS_SYSTEM_IP  hostname or IP that devices use for inform (http://<it>:8080/inform)
 #   UOS_UUID       fixed system UUID; generated once and kept in /data/uos_uuid when unset
+#   CERTDIR, CERTNAME, CERT_PRIVATE_NAME, CERT_IS_CHAIN   custom TLS certificate (import-cert.sh)
 set -eu
 
 # --- stable system UUID, persisted in /data ----------------------------------------------
@@ -56,5 +57,8 @@ if [ -n "${UOS_SYSTEM_IP:-}" ]; then
         echo "system_ip=$UOS_SYSTEM_IP" >> "$props"
     fi
 fi
+
+# --- custom TLS certificate (optional; see README) ---------------------------------------
+/usr/local/sbin/uos-import-cert
 
 exec /sbin/init

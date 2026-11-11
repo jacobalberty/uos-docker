@@ -26,6 +26,8 @@ services:
       - ./state/var-lib-unifi:/var/lib/unifi
       - ./state/var-lib-mongodb:/var/lib/mongodb
       - ./state/etc-rabbitmq-ssl:/etc/rabbitmq/ssl
+      # optional: your own TLS certificate (cert.pem, privkey.pem, chain.pem); see README
+      # - ./certs:/unifi/cert:ro
     # Either give the container its own LAN address (macvlan, then no `ports:` is needed) ...
     networks:
       lan:
