@@ -4,7 +4,9 @@
     "config:recommended"
   ],
   "timezone": "America/Chicago",
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true
+  },
   "packageRules": [
     {
       "description": "One PR for all GitHub Actions updates",
